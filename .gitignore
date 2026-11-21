@@ -1,0 +1,8 @@
+# Ficheiros de ambiente
+.env
+.env.*
+!.env.example
+
+# Pastas comuns que não devem ir para o GitHub
+node_modules/
+.DS_Store
