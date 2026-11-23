@@ -3,7 +3,10 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
+from langchain_tavily import TavilySearch
+from langgraph.checkpoint.sqlite import SqliteSaver
+
 
 load_dotenv()
 
@@ -48,6 +51,33 @@ def _get_llm() -> ChatOllama:
         },
     )
 
+def _get_db_path() -> str:
+    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    return str(STORAGE_DIR / f"memory_{SESSION_ID}.sqlite")
+
+def _load_history() -> list:
+    config = {"configurable": {"thread_id": SESSION_ID, "checkpoint_ns":""}}
+    with SqliteSaver.from_conn_string(_get_db_path()) as saver:
+        checkpoint = saver.get(config)
+        if checkpoint and "messages" in checkpoint.get("channel_values", {}):
+            return checkpoint["channel_values"]["messages"][-20:]
+        return []
+
+def _save_history(history_messages: list) -> None:
+    config = {"configurable": {"thread_id": SESSION_ID, "checkpoint_ns":""}}
+    with SqliteSaver.from_conn_string(_get_db_path()) as saver:
+        existing = saver.get(config)
+        step = existing["metadata"]["step"] + 1 if existing and "metadata" in existing else 0
+        checkpoint = {
+            "v": 1,
+            "id": f"step-{step}",
+            "ts": "",
+            "channel_values": {"messages": history_messages},
+            "channel_versions": {"messages": step + 1},
+            "versions_seen": {},
+        }
+        saver.put(config, checkpoint, {"source": "loop", "step": step, "writes": {}}, {})
+
 
 def answer(prompt: str) -> str:
     """Return the final answer to ONE user message, as a nonempty string.
@@ -72,10 +102,11 @@ def answer(prompt: str) -> str:
     rag_context = "Nenhum documento indexado ainda."
 
     # [LEONOR - Passo 3]: Aqui vai entrar o carregamento do histórico da sessão (SESSION_ID)
-    chat_history = []
+    chat_history = _load_history()
 
     # [LEONOR - Passo 3]: Aqui vai entrar a lista de ferramentas (ex: Tavily)
-    tools = []
+    tavily_tool = TavilySearch(max_results = 3)
+    tools = [tavily_tool]
 
     system_content = (
         f"{SYSTEM_PROMPT}\n\n"
@@ -105,6 +136,11 @@ def answer(prompt: str) -> str:
                 raise RuntimeError("O modelo devolveu uma resposta vazia.")
 
             # [LEONOR - Passo 3]: Guardar aqui a interação na memória persistente
+            updated_history = chat_history + [
+                HumanMessage(content=prompt),
+                AIMessage(content=final_answer),
+            ]
+            _save_history(updated_history)
             return final_answer
 
         for tool_call in response.tool_calls:
@@ -135,7 +171,9 @@ def reset() -> None:
     """
 
     # YOUR IMPLEMENTATION STARTS HERE.
-
+    if STORAGE_DIR.exists():
+        for file in STORAGE_DIR.glob("memory_*.sqlite*"):
+            file.unlink()
     return None
 
 
