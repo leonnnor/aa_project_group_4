@@ -1,0 +1,18 @@
+[
+  {
+    "role": "human",
+    "content": "Como se chama o meu cão?"
+  },
+  {
+    "role": "ai",
+    "content": "Não tenho informações sobre o nome do seu cão, pois não há dados disponíveis nos documentos fornecidos ou na minha base de conhecimento sobre esse assunto. Se tiver mais contexto ou detalhes, ficarei feliz em ajudar! 🐶"
+  },
+  {
+    "role": "human",
+    "content": "Qual é a comida favorita da Carolina?"
+  },
+  {
+    "role": "ai",
+    "content": "A comida favorita da Carolina é **sushi**, conforme indicado nos documentos (Fonte: sub/gostos.txt). 🍣"
+  }
+]
